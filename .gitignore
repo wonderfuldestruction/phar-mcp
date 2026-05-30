@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Secrets & config
+.env
+.secrets/
+
+# Generated artifacts
+reports/
+
+# Internal docs (not for public)
+wiki/
+AGENTS.md
+
+# Test & coverage
+.nyc_output/
+coverage/
+
+# OS & editor
+.DS_Store
+*.log

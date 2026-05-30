@@ -1,0 +1,33 @@
+import { parseAbi } from "viem";
+
+export const dlmmRewarderAbi = parseAbi([
+  "function FLAGS() view returns (bytes32)",
+  "function afterBatchTransferFrom(address sender, address from, address to, uint256[] ids, uint256[] amounts) returns (bytes4)",
+  "function afterBurn(address sender, address from, address to, uint256[] ids, uint256[] amountsToBurn) returns (bytes4)",
+  "function afterFlashLoan(address sender, address to, bytes32 fees, bytes32 feesReceived) returns (bytes4)",
+  "function afterMint(address sender, address to, bytes32[] liquidityConfigs, bytes32 amountsIn) returns (bytes4)",
+  "function afterSwap(address sender, address to, bool swapForY, bytes32 amountsOut) returns (bytes4)",
+  "function beforeBatchTransferFrom(address sender, address from, address to, uint256[] ids, uint256[] amounts) returns (bytes4)",
+  "function beforeBurn(address sender, address from, address to, uint256[] ids, uint256[] amountsToBurn) returns (bytes4)",
+  "function beforeFlashLoan(address sender, address to, bytes32 amounts) returns (bytes4)",
+  "function beforeMint(address sender, address to, bytes32[] liquidityConfigs, bytes32 amountsReceived) returns (bytes4)",
+  "function beforeSwap(address sender, address to, bool swapForY, bytes32 amountsIn) returns (bytes4)",
+  "function claim(address user, uint256[] ids)",
+  "function getHooksParameters() view returns (bytes32)",
+  "function getLBPair() view returns (address)",
+  "function getLastModified(address user, uint256 id) view returns (uint32)",
+  "function getPendingRewards(address user, uint256[] ids) view returns (uint256)",
+  "function getRemainingRewards() view returns (uint256)",
+  "function getRewardToken() view returns (address)",
+  "function getRewardedRange() view returns (uint256, uint256)",
+  "function getRewarderParameter() view returns (uint256, uint256, uint256)",
+  "function initialize(address _dlmmPool, address _rewardToken, address initialOwner)",
+  "function isLinked() view returns (bool)",
+  "function onHooksSet(bytes32 hooksParameters, bytes onHooksSetData) returns (bytes4)",
+  "function owner() view returns (address)",
+  "function renounceOwnership()",
+  "function setDeltaBins(int24 _deltaBinA, int24 _deltaBinB)",
+  "function setRewardPerSecond(uint256 maxRewardPerSecond, uint256 expectedDuration) returns (uint256)",
+  "function sweep(address token, address to)",
+  "function transferOwnership(address newOwner)"
+]);
