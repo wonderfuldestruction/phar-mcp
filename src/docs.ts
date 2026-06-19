@@ -203,6 +203,8 @@ function shouldUseCache(refresh?: boolean) {
 }
 
 async function buildDocsIndex(maxPages = DEFAULT_MAX_PAGES): Promise<DocsCache> {
+  // Pages that return 404 but are still linked from other docs pages.
+  const EXTERNAL_PROTOCOLS = new Set(["/pages/xrex"]);
   const discovered = new Set<string>();
   const queue = seedPaths.map((path) => canonicalDocsUrl(path).href);
   const pages: DocsPage[] = [];
@@ -212,6 +214,8 @@ async function buildDocsIndex(maxPages = DEFAULT_MAX_PAGES): Promise<DocsCache> 
     const href = queue[index];
     if (discovered.has(href)) continue;
     discovered.add(href);
+    const candidateUrl = new URL(href);
+    if (EXTERNAL_PROTOCOLS.has(candidateUrl.pathname)) continue;
 
     try {
       const fetched = await fetchDocsUrl(new URL(href));
@@ -367,7 +371,14 @@ export async function pharaohDocsPageGet(input: {
   const maxChars = capPageChars(input.maxChars);
 
   if (!input.refresh && shouldUseCache(false)) {
-    const cached = cache?.pages.find((page) => page.url === url.href || page.path === url.pathname);
+    const cached = cache?.pages.find((page) => {
+      try {
+        const normalized = canonicalDocsUrl(page.url).href;
+        return normalized === url.href || page.path === url.pathname;
+      } catch {
+        return false;
+      }
+    });
     if (cached) {
       return {
         source: DOCS_BASE_URL,
@@ -386,6 +397,14 @@ export async function pharaohDocsPageGet(input: {
 
   const fetched = await fetchDocsUrl(url);
   const page = pageFromFetch(fetched);
+  if (cache) {
+    const existing = cache.pages.findIndex((p) => p.url === page.url);
+    if (existing >= 0) {
+      cache.pages[existing] = page;
+    } else {
+      cache.pages.push(page);
+    }
+  }
   return {
     source: DOCS_BASE_URL,
     title: page.title,
