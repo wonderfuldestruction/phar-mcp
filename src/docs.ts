@@ -4,6 +4,14 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_PAGES = 64;
 const DEFAULT_PAGE_CHARS = 12_000;
 const MAX_PAGE_CHARS = 50_000;
+const CAMOFOX_BASE_URL = "http://localhost:9377";
+const CAMOFOX_USER_ID = "docs-reader";
+const CAMOFOX_SESSION_KEY = "phar-docs";
+const CAMOFOX_NAVIGATE_WAIT_MS = 4_000;
+
+// Camofox tab state for reuse across fetches
+let camofoxTabId: string | undefined;
+let camofoxTabHealthy = false;
 
 const seedPaths = [
   "/",
@@ -155,7 +163,113 @@ function extractDocsLinks(html: string, sourceUrl: string) {
   return [...links];
 }
 
-async function fetchDocsUrl(url: URL): Promise<FetchResult> {
+async function camofoxEnsureTab(): Promise<string> {
+  if (camofoxTabId && camofoxTabHealthy) return camofoxTabId;
+
+  // Close old tab if exists
+  if (camofoxTabId) {
+    try {
+      await fetch(`${CAMOFOX_BASE_URL}/tabs/${camofoxTabId}/close`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({})
+      });
+    } catch {
+      // Ignore close errors
+    }
+    camofoxTabId = undefined;
+    camofoxTabHealthy = false;
+  }
+
+  const res = await fetch(`${CAMOFOX_BASE_URL}/tabs/open`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      userId: CAMOFOX_USER_ID,
+      sessionKey: CAMOFOX_SESSION_KEY,
+      url: "about:blank"
+    })
+  });
+
+  if (!res.ok) {
+    throw new Error(`Camofox tabs/open failed: HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const tabId = data.tabId;
+  if (!tabId || typeof tabId !== "string") {
+    throw new Error("Camofox tabs/open returned no tabId");
+  }
+  camofoxTabId = tabId;
+  camofoxTabHealthy = true;
+  return tabId;
+}
+
+async function camofoxCloseTab() {
+  if (camofoxTabId) {
+    try {
+      await fetch(`${CAMOFOX_BASE_URL}/tabs/${camofoxTabId}/close`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({})
+      });
+    } catch {
+      // Ignore
+    }
+    camofoxTabId = undefined;
+    camofoxTabHealthy = false;
+  }
+}
+
+async function fetchDocsUrlViaCamofox(url: URL): Promise<FetchResult> {
+  const tabId = await camofoxEnsureTab();
+
+  try {
+    // Navigate
+    const navRes = await fetch(`${CAMOFOX_BASE_URL}/tabs/${tabId}/navigate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: CAMOFOX_USER_ID, url: url.href })
+    });
+
+    if (!navRes.ok) {
+      throw new Error(`Camofox navigate failed: HTTP ${navRes.status}`);
+    }
+
+    // Wait for page to render (JS needs time to hydrate)
+    await new Promise((resolve) => setTimeout(resolve, CAMOFOX_NAVIGATE_WAIT_MS));
+
+    // Extract full HTML from rendered page
+    const evalRes = await fetch(`${CAMOFOX_BASE_URL}/tabs/${tabId}/evaluate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        userId: CAMOFOX_USER_ID,
+        expression: "document.documentElement.outerHTML"
+      })
+    });
+
+    if (!evalRes.ok) {
+      throw new Error(`Camofox evaluate failed: HTTP ${evalRes.status}`);
+    }
+
+    const evalData = await evalRes.json();
+    const html = evalData.result ?? "";
+
+    return {
+      url: url.href,
+      status: 200,
+      html,
+      fetchedAt: new Date().toISOString(),
+      contentType: "text/html; charset=utf-8"
+    };
+  } catch (error) {
+    camofoxTabHealthy = false;
+    throw error;
+  }
+}
+
+async function plainFetch(url: URL): Promise<FetchResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -180,6 +294,36 @@ async function fetchDocsUrl(url: URL): Promise<FetchResult> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function looksLikeSpaShell(html: string): boolean {
+  // Client-side rendered pages have very little text content in the raw HTML.
+  // Strip tags and check if we got meaningful text.
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length < 2_000;
+}
+
+async function fetchDocsUrl(url: URL): Promise<FetchResult> {
+  // Plain fetch first — works for everyone
+  const result = await plainFetch(url);
+
+  // If the page looks like a client-side rendered shell, try camofox to get real content
+  if (looksLikeSpaShell(result.html)) {
+    try {
+      const rendered = await fetchDocsUrlViaCamofox(url);
+      // Keep camofox source URL but use rendered HTML
+      return { ...result, html: rendered.html };
+    } catch {
+      // Camofox unavailable — return plain fetch result as-is
+    }
+  }
+
+  return result;
 }
 
 function pageFromFetch(fetchResult: FetchResult) {
