@@ -383,7 +383,7 @@ const failures = [
       phase: item.phase,
       label: item.label,
       hash: item.hash,
-      reason: item.error ?? JSON.stringify(item.checks)
+      reason: item.error ?? JSON.stringify(item.checks, (_, v) => typeof v === 'bigint' ? v.toString() : v)
     }))
 ];
 const sourceSummaries = Object.fromEntries(liveSources.map((source) => {

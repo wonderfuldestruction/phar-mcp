@@ -25,7 +25,7 @@ const keyMatch = readFileSync(keyFile, "utf8").match(/Private key:\s*(0x[0-9a-fA
 if (!keyMatch) throw new Error(`Could not read private key from ${keyFile}`);
 
 const account = privateKeyToAccount(keyMatch[1]);
-const expectedWallet = process.env.PHAR_MCP_WALLET ?? "0x0000000000000000000000000000000000000000".toLowerCase();
+const expectedWallet = (process.env.PHAR_MCP_WALLET ?? "0x0000000000000000000000000000000000000000").toLowerCase();
 if (account.address.toLowerCase() !== expectedWallet) {
   throw new Error(`Loaded key address ${account.address} does not match expected wallet.`);
 }

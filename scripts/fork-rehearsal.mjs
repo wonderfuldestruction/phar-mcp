@@ -35,7 +35,7 @@ if (!keyMatch) {
 }
 
 const account = privateKeyToAccount(keyMatch[1]);
-const expectedWallet = process.env.PHAR_MCP_WALLET ?? "0x0000000000000000000000000000000000000000".toLowerCase();
+const expectedWallet = (process.env.PHAR_MCP_WALLET ?? "0x0000000000000000000000000000000000000000").toLowerCase();
 if (account.address.toLowerCase() !== expectedWallet) {
   throw new Error(`Loaded key address ${account.address} does not match expected wallet.`);
 }
